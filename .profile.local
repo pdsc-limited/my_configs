@@ -8,6 +8,26 @@
 # for ssh logins, install and configure the libpam-umask package.
 #umask 022
 
+# Emacs uses the login name (from LOGNAME/USER) while deciding where to look
+# for the init file. Some container sessions inherit LOGNAME=root even though
+# HOME and uid are epd, which makes plain `emacs` look for ~root/.emacs and
+# skip ~/.emacs.d/init.el entirely.
+_actual_user=$(id -un 2>/dev/null)
+if [ -n "$_actual_user" ] && { [ "${LOGNAME:-}" != "$_actual_user" ] || [ "${USER:-}" != "$_actual_user" ]; }; then
+    export LOGNAME="$_actual_user"
+    export USER="$_actual_user"
+fi
+unset _actual_user
+
+# Keep SHELL exported for Emacs/vterm in login/GUI sessions too.
+if [ -z "${SHELL:-}" ]; then
+    if command -v zsh >/dev/null 2>&1; then
+        export SHELL=$(command -v zsh)
+    else
+        export SHELL=/bin/sh
+    fi
+fi
+
 # if running bash
 if [[ $(hostname -d) = "frontier.olcf.ornl.gov" ]]; then
     echo "on frontier"

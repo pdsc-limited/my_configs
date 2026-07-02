@@ -5,6 +5,22 @@
 
 alias hig="history | grep"
 
+# Emacs uses the login name (from LOGNAME/USER) while deciding where to look
+# for the init file. Some container sessions inherit LOGNAME=root even though
+# HOME and uid are epd, which makes plain `emacs` look for ~root/.emacs and
+# skip ~/.emacs.d/init.el entirely.
+if [[ ${LOGNAME:-} != $(id -un) || ${USER:-} != $(id -un) ]]; then
+    export LOGNAME=$(id -un)
+    export USER=$(id -un)
+fi
+
+# Keep SHELL exported for Emacs/vterm. Some container sessions leave it unset;
+# then vterm falls back to /bin/sh and may open a blank/dead terminal instead
+# of the expected zsh.
+if [[ -z ${SHELL:-} ]]; then
+    export SHELL=${ZSH_EXEPATH:-${commands[zsh]:-/bin/sh}}
+fi
+
 # In some containers the inherited HOST variable is a bind address such as
 # 0.0.0.0. Zsh uses $HOST for prompt escapes like %m, which makes the Radian
 # prompt show epd@0. Prefer the actual container hostname in that case.
