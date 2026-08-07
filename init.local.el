@@ -102,6 +102,13 @@
   ;;  (require 'mrpapp-style)
   (radian-use-package lsp-mode
     :config
+    ;; Do not repeatedly prompt to auto-install language servers when opening
+    ;; files. Failed installs otherwise get suggested again and again (e.g.
+    ;; xmlls in the qmcpack Spack environment). Install servers manually with
+    ;; M-x lsp-install-server when desired.
+    (setq lsp-enable-suggest-server-download nil)
+    ;; Also avoid warning on every buffer when a matching server is absent.
+    (setq lsp-warn-no-matched-clients nil)
     (setq lsp-clangd-binary-path "/home/epd/spack/opt/spack/linux-x86_64_v4/llvm-21.1.4-zptjnyy3jdo5reh2blr546ffzwllcxdg/bin/clangd")  )
   (use-feature cc-mode
     :config
@@ -196,67 +203,26 @@
 
   ;; LLM setup for sdgx-server
   (cond ((string-match "a30four" (system-name)) (straight-use-package 'llm)
-         (radian-use-package ellama
-           :ensure t
-           :bind ("C-c e" . ellama)
-           ;; send last message in chat buffer with C-c C-c
-           :hook (org-ctrl-c-ctrl-c-final . ellama-chat-send-last-message)
-           :init
-           ;; setup key bindings
-           ;; (setopt ellama-keymap-prefix "C-c e")
-           ;; language you want ellama to translate to
-           (setopt ellama-language "English")
-           ;; customize display buffer behaviour
-           ;; see ~(info "(elisp) Buffer Display Action Functions")~
-           (setopt ellama-chat-display-action-function #'display-buffer-full-frame)
-           (setopt ellama-instant-display-action-function #'display-buffer-at-bottom)
-           :config
-           ;; could be llm-openai for example                                                       (require 'llm-openai)
-           (require 'llm-openai)
-           (setopt ellama-provider
-  	           (make-llm-openai-compatible
-  	            ;; this model should be pulled to use it
-  	            ;; value should be the same as you print in terminal during pull
-  	            :url "http://127.0.0.1:8080"
-                    :chat-model "Qwen3-Coder-480B-A35B-Instruct")))
-         ;; show ellama context in header line in all buffers
-         ;; (ellama-context-header-line-global-mode +1)
-         ;; ;; show ellama session id in header line in all buffers
-         ;; (ellama-session-header-line-global-mode +1))
-	 ;;  +1))
-         ;; (radian-use-package lsp-bridge
-         ;;   :straight '(lsp-bridge :type git :host github :repo "manateelazycat/lsp-bridge"
-         ;;                          :files (:defaults "*.el" "*.py" "acm" "core" "langserver" "multiserver" "resources")
-         ;;                          :build (:not compile))
-         ;;   :init
-         ;;   (global-lsp-bridge-mode)
-         ;;   :config
-         ;;   (setq lsp-bridge-enable-llm t)  ; Critical!
-         ;;   (setq lsp-bridge-llm-backend "codegeex") ; Or "codellama", "qwen", etc.
-         ;;   (setq lsp-bridge-semantic-tokens-enable t)
-         ;;   (setq lsp-bridge-semantic-tokens-max-file-size 1000)
-         ;;   (setq lsp-bridge-chat-max-tokens 8000))
-
 	 (straight-use-package 'gptel)
 	 (radian-use-package gptel
 	   :straight (:host github :repo "karthink/gptel")
            :bind ("C-c g m" . gptel-menu)
 	   :config
            (gptel-make-openai "llama-cpp"
-                              :stream t
-                              :protocol "http"
-                              :host "127.0.0.1:8049"
-                              :models '(Qwen3-Coder-Next))
+             :stream t
+             :protocol "http"
+             :host "127.0.0.1:8049"
+             :models '(Qwen3-Coder-Next))
            (gptel-make-openai "vllm"
-                              :stream t
-                              :protocol "http"
-                              :host "localhost:8000"
-                              :models '(cpatonn/Qwen3-Coder-30B-A3B-Instruct-AWQ-8bit))
+             :stream t
+             :protocol "http"
+             :host "localhost:8000"
+             :models '(cpatonn/Qwen3-Coder-30B-A3B-Instruct-AWQ-8bit))
            (gptel-make-openai "vllm"
-                              :stream t
-                              :protocol "http"
-                              :host "localhost:8000"
-                              :models '(cyankiwi/Devstral-2-123B-Instruct-2512-AWQ-4bit))
+             :stream t
+             :protocol "http"
+             :host "10.64.200.114:8000"
+             :models '(RedHatAI/Qwen3.6-35B-A3B-NVFP4))
            (gptel-make-tool
             :name "create-file"
             :function (lambda (path filename content)
@@ -276,7 +242,39 @@
 	                        :type string
 	                        :description "The content to write to the file"))
             :category "filesystem")
-           )))
+           ))
+        ((string-match "6fe1028e3e39" (system-name))
+         (straight-use-package 'llm)
+	 (straight-use-package 'gptel)
+         (radian-use-package gptel
+	   :straight (:host github :repo "karthink/gptel")
+           :bind ("C-c g m" . gptel-menu)
+	   :config
+           (gptel-make-openai "vllm"
+             :stream t
+             :protocol "http"
+             :host "10.64.200.114:8000"
+             :models '(RedHatAI/gemma-4-31B-it-FP8-block))
+           (gptel-make-tool
+            :name "create-file"
+            :function (lambda (path filename content)
+                        (let ((full-path (expand-file-name filename path)))
+                          (with-temp-buffer
+                            (insert content)
+                            (write-file full-path))
+                          (format "Created file %s in %s" filename path)))
+            :description "Create a new file with the specified content"
+            :args (list '(:name "path"             ; a list of argument specifications
+	                        :type string
+	                        :description "The directory where to create the file")
+                        '(:name "filename"
+	                        :type string
+	                        :description "The name of the file to create")
+                        '(:name "content"
+	                        :type string
+	                        :description "The content to write to the file"))
+            :category "filesystem"))
+         ))
   ;; 1. Define function to load your .llm-context file
   ;; (defun my/lsp-bridge-get-context ()
   ;;   (when-let ((root (projectile-project-root)))
